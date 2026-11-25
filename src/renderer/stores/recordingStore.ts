@@ -28,6 +28,9 @@ import {
   clampAutoStopMinutes,
 } from '../../shared/types/recording';
 
+/** Meetings whose transcript-finished event already arrived (it can beat stopRecording's own return). */
+const finishedEarly = new Set<string>();
+
 interface RecordingStore {
   // State
   isRecording: boolean;
@@ -41,6 +44,12 @@ interface RecordingStore {
   includeMic: boolean;
   prepBriefing: string | null;
   processingProgress: TranscriptionProgress | null;
+  /**
+   * The stopped meeting whose transcript is still finishing in the background
+   * (main sends recording:transcript-finished when it is done). The screen is free
+   * meanwhile; only a small indicator shows it.
+   */
+  finishingMeetingId: string | null;
   /** Live transcript segments accumulated for the active recording (app-wide, not tied to any single view). */
   liveSegments: TranscriptSegment[];
   /** When true, the full-screen LiveModeOverlay is collapsed to the recording pill. Reset to false on each new recording. */
@@ -91,6 +100,7 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
   includeMic: true,
   prepBriefing: null,
   processingProgress: null,
+  finishingMeetingId: null,
   liveSegments: [],
   liveModeMinimized: false,
   inactivityState: 'idle',
@@ -238,40 +248,31 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
       // Step 2: Stop audio capture in renderer
       await audioCaptureService.stopCapture();
 
-      // Step 3: Tell main process to stop recording (saves WAV)
+      // Step 3: Tell main process to stop recording. Resolves once the WAV is saved;
+      // the transcript finishes in the background and MAIN marks the meeting
+      // completed (which starts the brief) — see onTranscriptFinished below.
       const audioPath = await window.electronAPI.stopRecording();
 
-      // Step 4: Update meeting with audioPath and completion
+      // Step 4: Record when the meeting ended and where its audio is. Not the status.
       if (meetingId) {
         await window.electronAPI.updateMeeting(meetingId, {
           endedAt: new Date().toISOString(),
           ...(audioPath ? { audioPath } : {}),
-          status: 'completed',
         });
       }
 
       set({
         isProcessing: false,
-        processingProgress: null,
         meetingId: null,
         completedMeetingId: meetingId,
+        // The finished event can beat this line on a short drain; never resurrect it.
+        finishingMeetingId: meetingId && !finishedEarly.has(meetingId) ? meetingId : null,
         elapsed: 0,
         lastTranscript: '',
         liveSegments: [],
       });
       if (meetingId) {
         useGamificationStore.getState().awardXP('meeting_complete', meetingId);
-        toast(
-          'Meeting processed',
-          'success',
-          {
-            label: 'View Results',
-            onClick: () => {
-              window.location.hash = '#/meetings';
-            },
-          },
-          5000,
-        );
       }
     } catch (error) {
       set({
@@ -296,7 +297,9 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
     try {
       audioCaptureService.onAudioInterrupted(null);
       await audioCaptureService.stopCapture();
-      await window.electronAPI.stopRecording();
+      // Discard: queued windows are dropped and nothing writes to the meeting after
+      // this resolves, so it can be deleted.
+      await window.electronAPI.stopRecording({ discard: true });
       if (meetingId) {
         await window.electronAPI.deleteMeeting(meetingId);
       }
@@ -350,8 +353,36 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
     // meetingStore so an open session page keeps showing segments live
     // (preserves prior behavior that used to live in MeetingsModern).
     const cleanupTranscriptSegment = window.electronAPI.onTranscriptSegment((segment) => {
-      set((state) => ({ liveSegments: [...state.liveSegments, segment] }));
+      // Segments of a stopped meeting keep arriving while it finishes; they belong
+      // on its session page, not in the next recording's live feed.
+      if (segment.meetingId === get().meetingId) {
+        set((state) => ({ liveSegments: [...state.liveSegments, segment] }));
+      }
       useMeetingStore.getState().addTranscriptSegment(segment);
+    });
+
+    const cleanupTranscriptFinished = window.electronAPI.onTranscriptFinished(({ meetingId }) => {
+      finishedEarly.add(meetingId);
+      set((state) => ({
+        finishingMeetingId: state.finishingMeetingId === meetingId ? null : state.finishingMeetingId,
+        processingProgress: state.isRecording ? state.processingProgress : null,
+      }));
+      // The open session page picks up 'completed' (its brief starts from it).
+      if (useMeetingStore.getState().selectedMeeting?.id === meetingId) {
+        void useMeetingStore.getState().loadMeeting(meetingId);
+      }
+      void useMeetingStore.getState().loadMeetings();
+      toast(
+        'Transcript ready',
+        'success',
+        {
+          label: 'View Results',
+          onClick: () => {
+            window.location.hash = `#/session/${meetingId}`;
+          },
+        },
+        5000,
+      );
     });
 
     return () => {
@@ -360,6 +391,7 @@ export const useRecordingStore = create<RecordingStore>((set, get) => ({
       cleanupProgress();
       cleanupTranscription();
       cleanupTranscriptSegment();
+      cleanupTranscriptFinished();
     };
   },
 }));

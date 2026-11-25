@@ -31,8 +31,10 @@ vi.mock('node:fs/promises', () => ({ stat: vi.fn() }));
 
 const holder = vi.hoisted(() => ({ db: null as unknown as ReturnType<typeof drizzle> }));
 vi.mock('../../db/connection', () => ({ getDb: () => holder.db }));
+vi.mock('../transcriptResumeService', () => ({ scheduleTranscriptResume: vi.fn().mockResolvedValue(undefined) }));
 
 import * as fsp from 'node:fs/promises';
+import { scheduleTranscriptResume } from '../transcriptResumeService';
 import { recoverStaleRecordings } from '../staleRecordingRecovery';
 import { emptyCoverageTally } from '../../../shared/types/transcriptionCoverage';
 import { WINDOW_STAMP_MS, WINDOW_ADVANCE_MS, audioMsToStampedMs } from '../../../shared/transcription/timeCoordinates';
@@ -250,5 +252,62 @@ describe('recoverStaleRecordings — transcription coverage (TRANS-COV.1)', () =
     expect((await readMeeting(id)).status).toBe('completed');
 
     updateSpy.mockRestore();
+  });
+});
+
+describe('recoverStaleRecordings — the unfinished tail is resumed (2026-11-25)', () => {
+  it('leaves a STOPPED meeting at recording and resumes it with completion, so its brief still runs', async () => {
+    // Stop wrote ended_at; main writes 'completed' only when the background
+    // transcript finishes, and the app was closed before that.
+    const stoppedAt = new Date(STARTED.getTime() + 600_000);
+    const id = await seedMeeting('recording', stoppedAt);
+    await seedSegments(id, 240_000);
+    audioOfSeconds(600);
+
+    const recovered = await recoverStaleRecordings();
+
+    expect(recovered).toBe(1);
+    const row = await readMeeting(id);
+    expect(row.status).toBe('recording'); // the resume completes it, through meetingService
+    expect(row.endedAt).toEqual(stoppedAt);
+    expect(row.transcriptionCoverage).toBeNull();
+    expect(scheduleTranscriptResume).toHaveBeenCalledWith([
+      {
+        meetingId: id,
+        wavPath: expect.stringContaining(id),
+        lastSegmentEndMs: 240_000,
+        audioMs: 600_000,
+        markCompleted: true,
+      },
+    ]);
+  });
+
+  it('closes a CRASHED meeting as before and resumes its tail without completing it again', async () => {
+    const id = await seedMeeting('recording'); // ended_at NULL: died mid-recording
+    await seedSegments(id, 120_000);
+    audioOfSeconds(300);
+
+    await recoverStaleRecordings();
+
+    expect((await readMeeting(id)).status).toBe('completed');
+    expect(scheduleTranscriptResume).toHaveBeenCalledWith([
+      {
+        meetingId: id,
+        wavPath: expect.stringContaining(id),
+        lastSegmentEndMs: 120_000,
+        audioMs: 300_000,
+        markCompleted: false,
+      },
+    ]);
+  });
+
+  it('schedules nothing without audio, and closes a stopped meeting that has none', async () => {
+    const id = await seedMeeting('recording', new Date(STARTED.getTime() + 60_000));
+    noAudio();
+
+    await recoverStaleRecordings();
+
+    expect((await readMeeting(id)).status).toBe('completed');
+    expect(scheduleTranscriptResume).not.toHaveBeenCalled();
   });
 });

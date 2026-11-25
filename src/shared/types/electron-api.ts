@@ -343,13 +343,16 @@ export interface ElectronAPI {
 
   // Recording
   startRecording: (meetingId: string) => Promise<void>;
-  stopRecording: () => Promise<string>;
+  /** Resolves once the audio is saved; the transcript finishes in the background. */
+  stopRecording: (opts?: { discard?: boolean }) => Promise<string>;
   sendAudioChunk: (payload: AudioChunkPayload) => void;
   /** One-way capture diagnostic (AUDIO-DEVICE.1) — logged by main, never answered. */
   logAudioEvent: (event: AudioCaptureEvent) => void;
   enableLoopbackAudio: () => Promise<void>;
   disableLoopbackAudio: () => Promise<void>;
   onRecordingState: (callback: (state: RecordingState) => void) => () => void;
+  /** A stopped meeting's transcript is complete and the meeting is marked completed. */
+  onTranscriptFinished: (callback: (data: { meetingId: string }) => void) => () => void;
   onTranscriptSegment: (callback: (segment: TranscriptSegment) => void) => () => void;
   onTranscriptionStatus: (callback: (data: { status: string; reason: string }) => void) => () => void;
   onProcessingProgress: (callback: (progress: TranscriptionProgress) => void) => () => void;

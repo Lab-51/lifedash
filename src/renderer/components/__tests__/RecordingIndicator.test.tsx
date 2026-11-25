@@ -31,8 +31,24 @@ describe('RecordingIndicator', () => {
       liveModeMinimized: false,
       elapsed: 0,
       processingProgress: null,
+      finishingMeetingId: null,
       ...realActions,
     });
+  });
+
+  it('shows a small transcript-finishing note after Stop, with the windows left', () => {
+    useRecordingStore.setState({
+      finishingMeetingId: 'meeting-1',
+      processingProgress: {
+        phase: 'transcribing',
+        currentSegment: 3,
+        totalSegments: 7,
+        percentComplete: 43,
+        backendUsed: 'vulkan',
+      },
+    });
+    renderIndicator();
+    expect(screen.getByLabelText('Transcript finishing, open the session')).toHaveTextContent('Transcript 3/7');
   });
 
   it('renders nothing when neither recording nor processing', () => {

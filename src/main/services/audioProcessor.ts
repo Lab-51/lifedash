@@ -32,6 +32,7 @@ import { createLogger } from './logger';
 import { createWavHeader } from './wavUtils';
 import { setActiveMeetingId } from './recordingState';
 import { pinChatModelForRecording, releaseChatModelPin } from './recordingModelPin';
+import { cancelTranscriptResume } from './transcriptResumeService';
 import { LIVE_PROPOSALS_ENABLED } from '../../shared/features';
 
 const log = createLogger('Audio');
@@ -75,6 +76,16 @@ export function isRecording(): boolean {
 }
 
 let shuttingDown = false;
+
+/**
+ * Settles once the transcription pipeline owns the current session. A new
+ * recording can start while the previous Stop is still finishing its transcript
+ * (or a resume runs after a restart); the pipeline is single-session, so it waits
+ * for those, and the audio of those first seconds is buffered meanwhile.
+ */
+let transcriptionReady: Promise<void> = Promise.resolve();
+/** Chunks received before the pipeline was ready; null once they were handed over. */
+let bufferedChunks: AudioChunkBuffers[] | null = null;
 
 /** Called by app shutdown: no recording may start once services are being stopped. */
 export function blockNewRecordings(): void {
@@ -127,10 +138,27 @@ export async function startRecording(meetingId: string, language?: string): Prom
   // Push initial state immediately
   pushState();
 
-  // Start transcription pipeline (non-blocking, may skip if no model)
-  transcriptionService.start(meetingId, language).catch((err) => {
-    log.error('Transcription start failed:', err);
-  });
+  // Start transcription pipeline (non-blocking, may skip if no model). It waits for a
+  // previous Stop's background finish and cancels a post-restart resume first.
+  const waitStartedAt = Date.now();
+  const buffer: AudioChunkBuffers[] = [];
+  bufferedChunks = buffer;
+  transcriptionReady = (async () => {
+    try {
+      await cancelTranscriptResume();
+      await waitForStopToFinish();
+      const waitedMs = Date.now() - waitStartedAt;
+      if (waitedMs > 1000) log.info(`Transcription waited ${waitedMs} ms for the previous transcript to finish`);
+      await transcriptionService.start(meetingId, language);
+    } catch (err) {
+      log.error('Transcription start failed:', err);
+    } finally {
+      // Hand over what arrived meanwhile (also when this recording already
+      // stopped: stopRecording waits for this before it flushes the pipeline).
+      if (bufferedChunks === buffer) bufferedChunks = null;
+      for (const chunk of buffer) transcriptionService.addChunk(chunk);
+    }
+  })();
 
   // Start the proactive triage loop for this recording session. Symmetric with
   // stopTriage in stopRecording so its watermark/state is always cleared.
@@ -164,112 +192,137 @@ export function addChunk(payload: AudioChunkBuffers): void {
     dataBytes += payload.mixed.byteLength;
   }
 
-  transcriptionService.addChunk(payload);
+  if (bufferedChunks) bufferedChunks.push(payload);
+  else transcriptionService.addChunk(payload);
 }
 
 /**
- * Stop the recording. The chat-model pin is released on EVERY exit path — the
- * not-recording guard, a transcription flush failure, a WAV failure — because a leaked
- * pin would starve every other local AI task for the rest of the session, which is
- * worse than the model thrash the pin exists to prevent.
+ * Stop the recording. Resolves as soon as the WAV is saved; the transcript then
+ * FINISHES IN THE BACKGROUND (2026-11-25: the UI used to wait for every queued
+ * window, which on a slow machine held the screen for minutes and lost the tail
+ * when the app was closed meanwhile). When it is done the meeting is marked
+ * 'completed' here in main (which starts the brief through the completed hooks)
+ * and the renderer gets `recording:transcript-finished`.
+ *
+ * `discard` (Cancel recording): queued windows are dropped instead of
+ * transcribed, the meeting is never marked completed, and the call resolves only
+ * once nothing can write to the meeting any more, so the caller may delete it.
+ *
+ * The chat-model pin is released on EVERY exit path, because a leaked pin would
+ * starve every other local AI task for the rest of the session.
  */
-export async function stopRecording(): Promise<string> {
-  // A second stop while the first is flushing just fails: it must not replace the
-  // in-flight promise that shutdown waits on.
+export async function stopRecording(opts: { discard?: boolean } = {}): Promise<string> {
   if (!currentMeetingId) {
-    releaseChatModelPin(); // same as before: the not-recording guard still releases the pin
+    releaseChatModelPin(); // the not-recording guard still releases the pin
     throw new Error('Not currently recording.');
   }
-  const run = (async () => {
-    try {
-      return await stopRecordingInner();
-    } finally {
-      releaseChatModelPin();
-    }
-  })();
-  stopInFlight = run;
-  try {
-    return await run;
-  } finally {
-    if (stopInFlight === run) stopInFlight = null;
-  }
-}
-
-let stopInFlight: Promise<string> | null = null;
-
-/**
- * Resolves once no stop is flushing. App shutdown awaits this before closing the
- * database: a stop started from the UI can still be writing transcript rows (measured
- * up to ~7 s) when the quit proceeds.
- */
-/** True while a stop is still finishing the transcript (parked windows, flush). */
-export function isStopInFlight(): boolean {
-  return stopInFlight !== null;
-}
-
-export async function waitForStopToFinish(): Promise<void> {
-  await stopInFlight?.catch(() => undefined);
-}
-
-async function stopRecordingInner(): Promise<string> {
-  if (!currentMeetingId) {
-    throw new Error('Not currently recording.');
-  }
-
-  // Capture before clearing so we can tear down the triage loop symmetrically.
   const stoppedMeetingId = currentMeetingId;
+  const stopStartedAt = Date.now();
 
-  // Stop timer
   if (stateTimer) {
     clearInterval(stateTimer);
     stateTimer = null;
   }
-
   currentMeetingId = null;
   setActiveMeetingId(null);
+  bufferedChunks = null;
 
   // Stop the proactive triage loop for this session (clears its watermark/state).
   liveTriageService.stopTriage(stoppedMeetingId);
 
-  // Emit saving-audio phase before flushing
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    const progress = transcriptionService.getProgress();
-    mainWindow.webContents.send('recording:processing-progress', {
-      phase: 'saving-audio',
-      currentSegment: progress.currentSegment,
-      totalSegments: progress.totalSegments,
-      percentComplete: 0,
-      backendUsed: progress.backendUsed,
-    } satisfies TranscriptionProgress);
-  }
+  sendProgress('saving-audio', 0);
 
   // Read the session's provider/model BEFORE the flush: stop() resets them for
   // the next recording, and the coverage record has to name the one that ran.
   const provider = transcriptionService.getActiveProvider();
   const model = transcriptionService.getActiveModelName();
 
-  // Flush transcription and finalize WAV in parallel
-  const [, audioPath] = await Promise.all([transcriptionService.stop(), finalizeWav()]);
+  // The pipeline may still be starting (it waits for a previous finish); stop it
+  // only once it owns the session, or stop() would see no session and return early.
+  // Caught HERE, not where it is awaited: it can fail while the WAV is still being
+  // saved, which would otherwise surface as an unhandled rejection.
+  const flushed = transcriptionReady
+    .then(() => (opts.discard ? transcriptionService.abort() : transcriptionService.stop()))
+    .catch((err: unknown) => {
+      log.error('Transcription flush failed:', err);
+    });
 
-  // After the flush, so the windows stop() itself dispatched are counted.
-  await persistCoverage(stoppedMeetingId, provider, model, audioPath);
+  const wavSaved = finalizeWav().catch((err: unknown) => {
+    log.error('Failed to finalize WAV:', err);
+    return '';
+  });
 
-  // Emit finalizing at 100% before returning
-  if (mainWindow && !mainWindow.isDestroyed()) {
-    const progress = transcriptionService.getProgress();
-    mainWindow.webContents.send('recording:processing-progress', {
-      phase: 'finalizing',
-      currentSegment: progress.totalSegments,
-      totalSegments: progress.totalSegments,
-      percentComplete: 100,
-      backendUsed: progress.backendUsed,
-    } satisfies TranscriptionProgress);
-  }
+  // Registered SYNCHRONOUSLY, before the first await: shutdown checks isRecording()
+  // (already false) and then waits on this, so it must exist from this line on.
+  const finish = (async () => {
+    try {
+      const audioPath = await wavSaved;
+      await flushed;
+      if (opts.discard) return;
+      // After the flush, so the windows stop() itself dispatched are counted.
+      await persistCoverage(stoppedMeetingId, provider, model, audioPath);
+      await markCompleted(stoppedMeetingId);
+      sendProgress('finalizing', 100);
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('recording:transcript-finished', { meetingId: stoppedMeetingId });
+      }
+      log.info(`Recording ${stoppedMeetingId}: transcript finished ${Date.now() - stopStartedAt} ms after Stop`);
+    } finally {
+      releaseChatModelPin();
+    }
+  })();
+  stopInFlight = finish;
+  void finish.finally(() => {
+    if (stopInFlight === finish) stopInFlight = null;
+  });
 
-  // Push stopped state
   pushState();
-
+  const audioPath = await wavSaved;
+  log.info(`Recording ${stoppedMeetingId} stopped: audio saved in ${Date.now() - stopStartedAt} ms`);
+  if (opts.discard) await finish;
   return audioPath;
+}
+
+/**
+ * The meeting's one transition to 'completed' after a Stop. Through meetingService,
+ * so the completed hooks (brief + action items) run exactly as when the renderer
+ * wrote it. Never throws: the transcript is saved either way, and a row left at
+ * 'recording' is closed by stale-recording recovery on the next launch.
+ */
+async function markCompleted(meetingId: string): Promise<void> {
+  try {
+    await meetingService.updateMeeting(meetingId, { status: 'completed' });
+  } catch (err) {
+    log.error(`Failed to mark meeting ${meetingId} completed:`, err);
+  }
+}
+
+function sendProgress(phase: TranscriptionProgress['phase'], percentComplete: number): void {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  const progress = transcriptionService.getProgress();
+  mainWindow.webContents.send('recording:processing-progress', {
+    phase,
+    currentSegment: percentComplete === 100 ? progress.totalSegments : progress.currentSegment,
+    totalSegments: progress.totalSegments,
+    percentComplete,
+    backendUsed: progress.backendUsed,
+  } satisfies TranscriptionProgress);
+}
+
+/** The background transcript finish of the last Stop; null once it settled. */
+let stopInFlight: Promise<void> | null = null;
+
+/** True while a Stop is still finishing the transcript in the background. */
+export function isStopInFlight(): boolean {
+  return stopInFlight !== null;
+}
+
+/**
+ * Resolves once no stop is finishing. App shutdown awaits this before closing the
+ * database, and the next recording before it takes the transcription pipeline.
+ */
+export async function waitForStopToFinish(): Promise<void> {
+  await stopInFlight?.catch(() => undefined);
 }
 
 /**

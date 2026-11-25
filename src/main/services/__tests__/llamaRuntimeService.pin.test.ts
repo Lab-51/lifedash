@@ -131,7 +131,10 @@ vi.mock('../transcriptionService', () => ({
   getActiveProvider: () => 'local',
   getActiveModelName: () => null,
 }));
-vi.mock('../meetingService', () => ({ setTranscriptionCoverage: vi.fn(async () => undefined) }));
+vi.mock('../meetingService', () => ({
+  setTranscriptionCoverage: vi.fn(async () => undefined),
+  updateMeeting: vi.fn(async () => undefined),
+}));
 vi.mock('../liveTriageService', () => ({
   setMainWindow: vi.fn(),
   startTriage: vi.fn(),
@@ -412,6 +415,7 @@ describe('recording lifecycle wiring', () => {
     expect(svc.getChatModelPin()).toBe(CHAT_MODEL); // the sentinel resolved to a real id
 
     await audio.stopRecording();
+    await audio.waitForStopToFinish(); // the pin lasts until the transcript has finished
     expect(svc.getChatModelPin()).toBeNull();
   });
 
@@ -423,6 +427,7 @@ describe('recording lifecycle wiring', () => {
     expect(svc.getChatModelPin()).toBe(ALT_CHAT_MODEL);
 
     await audio.stopRecording();
+    await audio.waitForStopToFinish(); // the pin lasts until the transcript has finished
     expect(svc.getChatModelPin()).toBeNull();
   });
 
@@ -440,6 +445,7 @@ describe('recording lifecycle wiring', () => {
     expect(svc.getChatModelPin()).toBeNull();
 
     await audio.stopRecording();
+    await audio.waitForStopToFinish(); // the pin lasts until the transcript has finished
     expect(svc.getChatModelPin()).toBeNull();
   });
 
@@ -450,7 +456,10 @@ describe('recording lifecycle wiring', () => {
     expect(svc.getChatModelPin()).toBe(CHAT_MODEL);
 
     h.transcriptionStopFails = true;
-    await expect(audio.stopRecording()).rejects.toThrow(/transcription flush failed/);
+    // Stop returns once the audio is saved; the flush failure happens in the
+    // background finish, which is logged and still releases the pin.
+    await expect(audio.stopRecording()).resolves.toContain('meeting-failure');
+    await audio.waitForStopToFinish();
 
     expect(svc.getChatModelPin()).toBeNull();
   });

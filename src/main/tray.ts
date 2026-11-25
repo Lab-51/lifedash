@@ -47,6 +47,7 @@ export function createTray(mainWindow: BrowserWindow): Tray {
     {
       label: 'Show LifeDash',
       click: () => {
+        if (mainWindow.isDestroyed()) return;
         mainWindow.show();
         mainWindow.focus();
       },
@@ -66,6 +67,9 @@ export function createTray(mainWindow: BrowserWindow): Tray {
 
   // Single-click on tray icon: toggle window visibility
   tray.on('click', () => {
+    // The tray outlives the window while shutdown waits on a stop; a click then threw
+    // "Object has been destroyed" (2026-11-23 13:57).
+    if (mainWindow.isDestroyed()) return;
     if (mainWindow.isVisible()) {
       mainWindow.hide();
     } else {

@@ -3,9 +3,9 @@
 // status 'recording' because the app was closed or crashed mid-recording.
 //
 // === WHY THIS EXISTS ===
-// The ONLY place a meeting transitions to 'completed' is the RENDERER's stop
-// flow (recordingStore.ts, step 4: updateMeeting with endedAt + status). Main
-// never writes that transition. So if the window is closed, the process is
+// The ONLY place a meeting transitions to 'completed' after a recording is
+// audioProcessor's background finish (since 2026-11-25; before, the renderer's
+// stop flow wrote it). So if the window is closed, the process is
 // killed, or the app crashes while recording, the row keeps
 // status 'recording' with ended_at NULL — forever. The sessions list renders
 // `ended_at === null` as "Running..." (MeetingCardModern.tsx), so those
@@ -61,8 +61,18 @@
 // report real channel counters. What it CAN report is the untranscribed tail:
 // from the last transcript segment this meeting actually persisted to the end
 // of the recorded audio, as a single `unknown` gap. See buildRecoveredCoverage.
+//
+// === TWO KINDS OF STUCK ROW, AND THE TAIL IS RESUMED (2026-11-25) ===
+// Stop now returns once the audio is saved and main marks the meeting completed
+// only when the transcript has finished in the background. So a row still at
+// 'recording' WITH ended_at set is a meeting the user stopped whose finish was
+// cut off: it is left at 'recording' and handed to transcriptResumeService,
+// which transcribes the rest and then marks it completed THROUGH meetingService,
+// so its brief runs as after any Stop. A row with ended_at NULL crashed
+// mid-recording: it is closed here as before (no brief), and its tail is resumed
+// too. Both resumes run in the background after the launch settles.
 
-import { eq, isNull, max, and } from 'drizzle-orm';
+import { eq, max } from 'drizzle-orm';
 import { getDb } from '../db/connection';
 import { meetings, transcripts } from '../db/schema';
 import { createLogger } from './logger';
@@ -70,6 +80,7 @@ import { resolveRecordingWav, durationFromFileMs } from './wavSpanReader';
 import { emptyCoverageTally } from '../../shared/types/transcriptionCoverage';
 import type { CoverageGap, TranscriptionCoverage } from '../../shared/types/transcriptionCoverage';
 import { WINDOW_STAMP_MS, WINDOW_ADVANCE_MS, audioMsToStampedMs } from '../../shared/transcription/timeCoordinates';
+import { scheduleTranscriptResume, type ResumeJob } from './transcriptResumeService';
 
 const log = createLogger('StaleRecordingRecovery');
 
@@ -84,53 +95,23 @@ export async function recoverStaleRecordings(): Promise<number> {
   const db = getDb();
 
   const stale = await db
-    .select({ id: meetings.id, startedAt: meetings.startedAt, audioPath: meetings.audioPath })
+    .select({
+      id: meetings.id,
+      startedAt: meetings.startedAt,
+      endedAt: meetings.endedAt,
+      audioPath: meetings.audioPath,
+    })
     .from(meetings)
-    .where(and(eq(meetings.status, 'recording'), isNull(meetings.endedAt)));
+    .where(eq(meetings.status, 'recording'));
 
   if (stale.length === 0) return 0;
 
   let recovered = 0;
+  const resumeJobs: ResumeJob[] = [];
 
   for (const row of stale) {
     try {
-      // The furthest transcript segment actually persisted — the floor for
-      // ended_at's transcript fallback below, and (independent of which source
-      // wins) the start of the coverage gap the crash left behind.
-      const [agg] = await db
-        .select({ lastEnd: max(transcripts.endTime) })
-        .from(transcripts)
-        .where(eq(transcripts.meetingId, row.id));
-      const lastSegmentEndMs = agg?.lastEnd ?? null;
-
-      const wavPath = await resolveRecordingWav({ id: row.id, audioPath: row.audioPath });
-      const audioMs = wavPath ? await durationFromFileMs(wavPath) : null;
-
-      let durationMs = audioMs;
-      let source = 'wav';
-
-      if (durationMs === null && lastSegmentEndMs != null) {
-        durationMs = lastSegmentEndMs;
-        source = 'transcript';
-      }
-
-      // Floor: a recording that produced neither audio nor transcript ends
-      // when it started, giving a 0-length session rather than a false span.
-      if (durationMs === null || durationMs < 0) {
-        durationMs = 0;
-        source = 'none';
-      }
-
-      const endedAt = new Date(row.startedAt.getTime() + durationMs);
-
-      await db.update(meetings).set({ status: 'completed', endedAt }).where(eq(meetings.id, row.id));
-
-      recovered += 1;
-      log.info(
-        `Recovered stuck recording ${row.id}: ended_at derived from ${source}, duration ${(durationMs / 1000).toFixed(1)}s`,
-      );
-
-      await persistRecoveredCoverage(db, row.id, audioMs, lastSegmentEndMs);
+      if (await recoverRow(db, row, resumeJobs)) recovered += 1;
     } catch (err) {
       // One bad row must not strand the others, and there is no flag to wedge —
       // whatever fails here is simply retried on the next launch.
@@ -139,7 +120,73 @@ export async function recoverStaleRecordings(): Promise<number> {
   }
 
   log.info(`Stale recording recovery: closed ${recovered} of ${stale.length} stuck session(s)`);
+  if (resumeJobs.length > 0) void scheduleTranscriptResume(resumeJobs);
   return recovered;
+}
+
+type Db = ReturnType<typeof getDb>;
+interface StaleRow {
+  id: string;
+  startedAt: Date;
+  endedAt: Date | null;
+  audioPath: string | null;
+}
+
+/** Recover one stuck row; queues its untranscribed tail on `resumeJobs`. True when handled. */
+async function recoverRow(db: Db, row: StaleRow, resumeJobs: ResumeJob[]): Promise<boolean> {
+  // The furthest transcript segment actually persisted — the floor for
+  // ended_at's transcript fallback below, and (independent of which source
+  // wins) the start of the coverage gap the crash left behind.
+  const [agg] = await db
+    .select({ lastEnd: max(transcripts.endTime) })
+    .from(transcripts)
+    .where(eq(transcripts.meetingId, row.id));
+  const lastSegmentEndMs = agg?.lastEnd ?? null;
+
+  const wavPath = await resolveRecordingWav({ id: row.id, audioPath: row.audioPath });
+  const audioMs = wavPath ? await durationFromFileMs(wavPath) : null;
+  const resume = (markCompleted: boolean): ResumeJob | null =>
+    wavPath !== null && audioMs !== null
+      ? { meetingId: row.id, wavPath, lastSegmentEndMs: lastSegmentEndMs ?? 0, audioMs, markCompleted }
+      : null;
+
+  // Stopped by the user, transcript finish cut off: resume it, which also
+  // completes the row (with its brief). Without audio there is nothing to resume.
+  const stoppedJob = row.endedAt !== null ? resume(true) : null;
+  if (stoppedJob) {
+    resumeJobs.push(stoppedJob);
+    log.info(`Stopped recording ${row.id} has an unfinished transcript: resuming it in the background`);
+    return true;
+  }
+
+  let durationMs = audioMs;
+  let source = 'wav';
+
+  if (durationMs === null && lastSegmentEndMs != null) {
+    durationMs = lastSegmentEndMs;
+    source = 'transcript';
+  }
+
+  // Floor: a recording that produced neither audio nor transcript ends
+  // when it started, giving a 0-length session rather than a false span.
+  if (durationMs === null || durationMs < 0) {
+    durationMs = 0;
+    source = 'none';
+  }
+
+  const endedAt = new Date(row.startedAt.getTime() + durationMs);
+
+  await db.update(meetings).set({ status: 'completed', endedAt }).where(eq(meetings.id, row.id));
+
+  log.info(
+    `Recovered stuck recording ${row.id}: ended_at derived from ${source}, duration ${(durationMs / 1000).toFixed(1)}s`,
+  );
+
+  await persistRecoveredCoverage(db, row.id, audioMs, lastSegmentEndMs);
+
+  const crashedJob = resume(false);
+  if (crashedJob) resumeJobs.push(crashedJob);
+  return true;
 }
 
 /**

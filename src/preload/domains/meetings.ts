@@ -31,7 +31,7 @@ export const meetingsBridge = {
 
   // Recording
   startRecording: (meetingId: string) => ipcRenderer.invoke('recording:start', meetingId),
-  stopRecording: () => ipcRenderer.invoke('recording:stop'),
+  stopRecording: (opts?: { discard?: boolean }) => ipcRenderer.invoke('recording:stop', opts),
   // SPEAKER.1: one message per audio callback carrying all three channel views.
   // Fire-and-forget, as before. Buffer.from COPIES each view, which is required
   // anyway because the underlying ArrayBuffers are reused by the next callback.
@@ -52,6 +52,15 @@ export const meetingsBridge = {
     ipcRenderer.on('recording:state-update', handler);
     return () => {
       ipcRenderer.removeListener('recording:state-update', handler);
+    };
+  },
+  onTranscriptFinished: (callback: (data: { meetingId: string }) => void) => {
+    const handler = (_event: Electron.IpcRendererEvent, data: { meetingId: string }) => {
+      callback(data);
+    };
+    ipcRenderer.on('recording:transcript-finished', handler);
+    return () => {
+      ipcRenderer.removeListener('recording:transcript-finished', handler);
     };
   },
   onTranscriptSegment: (callback: (segment: TranscriptSegment) => void) => {

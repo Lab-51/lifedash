@@ -11,6 +11,7 @@ import { useNavigate } from 'react-router-dom';
 import { Square, Loader2, Maximize2 } from 'lucide-react';
 import { useRecordingStore } from '../stores/recordingStore';
 import { useLiveSuggestionsStore, selectPendingCount } from '../stores/liveSuggestionsStore';
+import type { TranscriptionProgress } from '../../shared/types';
 
 function formatElapsed(seconds: number): string {
   const m = Math.floor(seconds / 60)
@@ -20,11 +21,32 @@ function formatElapsed(seconds: number): string {
   return `${m}:${s}`;
 }
 
+/** The stopped meeting's transcript is still finishing; the screen stays free. */
+function FinishingNote({ progress, onOpen }: { progress: TranscriptionProgress | null; onOpen: () => void }) {
+  const left =
+    progress && progress.totalSegments > progress.currentSegment
+      ? ` ${progress.currentSegment}/${progress.totalSegments}`
+      : '';
+  return (
+    <button
+      onClick={onOpen}
+      title="The transcript of your last recording is still finishing. You can keep working."
+      aria-label="Transcript finishing, open the session"
+      className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-amber-500/10
+                 border border-amber-500/20 hover:bg-amber-500/20 transition-colors cursor-pointer"
+    >
+      <Loader2 size={12} className="text-amber-400 animate-spin" />
+      <span className="text-[0.625rem] font-medium text-amber-400">Transcript{left}</span>
+    </button>
+  );
+}
+
 export default function RecordingIndicator() {
   const isRecording = useRecordingStore((s) => s.isRecording);
   const isProcessing = useRecordingStore((s) => s.isProcessing);
   const elapsed = useRecordingStore((s) => s.elapsed);
   const processingProgress = useRecordingStore((s) => s.processingProgress);
+  const finishingMeetingId = useRecordingStore((s) => s.finishingMeetingId);
   const stopRecording = useRecordingStore((s) => s.stopRecording);
   const liveModeMinimized = useRecordingStore((s) => s.liveModeMinimized);
   const restoreLiveMode = useRecordingStore((s) => s.restoreLiveMode);
@@ -58,6 +80,12 @@ export default function RecordingIndicator() {
       navigate('/meetings');
     }
   }, [isProcessing, navigate]);
+
+  // After Stop the transcript finishes in the background: a small, clickable note,
+  // never a blocking panel (2026-11-25).
+  if (!isRecording && !isProcessing && finishingMeetingId) {
+    return <FinishingNote progress={processingProgress} onOpen={() => navigate(`/session/${finishingMeetingId}`)} />;
+  }
 
   if (!isRecording && !isProcessing) return null;
 

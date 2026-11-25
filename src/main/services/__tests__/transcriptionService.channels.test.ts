@@ -425,6 +425,19 @@ describe('transcriptionService — slower-than-realtime guard', () => {
     expect(starts.slice(0, calls - 1)).toEqual(Array.from({ length: calls - 1 }, (_, n) => n * 10000));
   });
 
+  it('a batch resume keeps original timestamps and never steps down or toasts', async () => {
+    // transcriptResumeService feeds a saved WAV faster than real time on purpose.
+    whisperTakes(() => 20_000);
+    await transcriptionService.start('meeting-resume', 'en', { firstSegmentIndex: 5, batch: true });
+    await feedWindows(4, (fed) => fed);
+    await transcriptionService.stop();
+
+    expect(fallbackToasts()).toEqual([]);
+    expect(win.webContents.send.mock.calls.filter((c) => c[0] === 'recording:processing-progress')).toEqual([]);
+    const starts = vi.mocked(meetingService.addTranscriptSegment).mock.calls.map((c) => c[2]);
+    expect(starts.slice(0, 4)).toEqual([50_000, 60_000, 70_000, 80_000]);
+  });
+
   it('starts the next recording back in normal mode', async () => {
     whisperTakes(() => 9000);
     await transcriptionService.start('meeting-a', 'en');

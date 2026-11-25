@@ -54,6 +54,7 @@ import { sweepOrphanedRecordings } from './services/recordingSweepService';
 import { sweepEntityNameFolds } from './services/entityNameFoldSweep';
 import { rescoreRecentUnscored } from './services/intelBriefService';
 import { recoverStaleRecordings } from './services/staleRecordingRecovery';
+import { cancelTranscriptResume } from './services/transcriptResumeService';
 import { sweepFailedBriefEmbeddings } from './services/embeddingService';
 
 const log = createLogger('App');
@@ -504,8 +505,9 @@ const shutdownServices = createShutdown(
       name: 'recording',
       run: async () => {
         blockNewRecordings();
+        await cancelTranscriptResume(); // its untranscribed rest is resumed next launch
         if (isAudioRecording()) await stopRecording();
-        else await waitForStopToFinish();
+        await waitForStopToFinish();
       },
     },
     { name: 'shortcuts', run: () => globalShortcut.unregisterAll() },

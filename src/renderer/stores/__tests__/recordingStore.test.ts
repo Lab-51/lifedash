@@ -23,9 +23,23 @@ vi.mock('../gamificationStore', () => ({
   useGamificationStore: { getState: () => ({ awardXP: vi.fn() }) },
 }));
 
-vi.mock('../meetingStore', () => ({
-  useMeetingStore: { getState: () => ({ addTranscriptSegment: vi.fn() }) },
+const meetingStoreState = vi.hoisted(() => ({
+  selectedMeeting: null as { id: string } | null,
+  addTranscriptSegment: vi.fn(),
+  loadMeeting: vi.fn().mockResolvedValue(undefined),
+  loadMeetings: vi.fn().mockResolvedValue(undefined),
 }));
+vi.mock('../meetingStore', () => ({
+  useMeetingStore: { getState: () => meetingStoreState },
+}));
+
+/** The callbacks initListener registered, by channel name. */
+const listeners = vi.hoisted(() => ({}) as Record<string, (data?: unknown) => void>);
+const listen = (name: string) =>
+  vi.fn((cb: (data?: unknown) => void) => {
+    listeners[name] = cb;
+    return () => undefined;
+  });
 
 vi.mock('../../hooks/useToast', () => ({
   toast: vi.fn(),
@@ -42,6 +56,12 @@ vi.stubGlobal('electronAPI', {
   recordingSetState: vi.fn(),
   getSetting: vi.fn((key: string) => Promise.resolve(settings[key] ?? null)),
   setSetting: vi.fn().mockResolvedValue(undefined),
+  onRecordingState: listen('recordingState'),
+  onRecordingForceStop: listen('forceStop'),
+  onProcessingProgress: listen('progress'),
+  onTranscriptionStatus: listen('transcriptionStatus'),
+  onTranscriptSegment: listen('segment'),
+  onTranscriptFinished: listen('finished'),
 });
 vi.stubGlobal('window', globalThis);
 
@@ -154,6 +174,84 @@ describe('recordingStore — completedMeetingId is set by stop and by nothing el
     useRecordingStore.setState({ completedMeetingId: 'meeting-1' });
     useRecordingStore.getState().clearCompletedMeetingId();
     expect(useRecordingStore.getState().completedMeetingId).toBeNull();
+  });
+});
+
+// 2026-11-25: Stop frees the screen once the audio is saved; main finishes the
+// transcript in the background and owns the 'completed' flip.
+describe('recordingStore — the transcript finishes in the background', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    meetingStoreState.selectedMeeting = null;
+    useRecordingStore.setState({
+      isRecording: false,
+      isProcessing: false,
+      meetingId: null,
+      completedMeetingId: null,
+      finishingMeetingId: null,
+      processingProgress: null,
+      liveSegments: [],
+    });
+    useRecordingStore.getState().initListener();
+  });
+
+  it('stop frees the screen, records the end, and leaves the status to main', async () => {
+    useRecordingStore.setState({ isRecording: true, meetingId: 'meeting-1' });
+
+    await useRecordingStore.getState().stopRecording();
+
+    const state = useRecordingStore.getState();
+    expect(state.isProcessing).toBe(false);
+    expect(state.finishingMeetingId).toBe('meeting-1');
+    const [, update] = vi.mocked(window.electronAPI.updateMeeting).mock.calls[0];
+    expect(update).toMatchObject({ audioPath: '/path/audio.wav', endedAt: expect.any(String) });
+    expect(update).not.toHaveProperty('status');
+  });
+
+  it('cancel discards: the stop is told to drop the queue before the meeting is deleted', async () => {
+    useRecordingStore.setState({ isRecording: true, meetingId: 'meeting-1' });
+
+    await useRecordingStore.getState().cancelRecording();
+
+    expect(window.electronAPI.stopRecording).toHaveBeenCalledWith({ discard: true });
+    expect(vi.mocked(window.electronAPI.stopRecording).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(window.electronAPI.deleteMeeting).mock.invocationCallOrder[0],
+    );
+  });
+
+  it('the finished event clears the indicator, refreshes the open session and says so', () => {
+    useRecordingStore.setState({ finishingMeetingId: 'meeting-1' });
+    meetingStoreState.selectedMeeting = { id: 'meeting-1' };
+
+    listeners.finished({ meetingId: 'meeting-1' });
+
+    expect(useRecordingStore.getState().finishingMeetingId).toBeNull();
+    expect(meetingStoreState.loadMeeting).toHaveBeenCalledWith('meeting-1');
+    expect(toast).toHaveBeenCalledWith('Transcript ready', 'success', expect.anything(), 5000);
+  });
+
+  it('a finished event that beats the stop return never leaves a stale indicator', async () => {
+    useRecordingStore.setState({ isRecording: true, meetingId: 'meeting-early' });
+    vi.mocked(window.electronAPI.stopRecording).mockImplementationOnce(async () => {
+      listeners.finished({ meetingId: 'meeting-early' });
+      return '/path/audio.wav';
+    });
+
+    await useRecordingStore.getState().stopRecording();
+
+    expect(useRecordingStore.getState().finishingMeetingId).toBeNull();
+  });
+
+  it('segments of a stopped meeting go to its session page, not the next live feed', () => {
+    useRecordingStore.setState({ isRecording: true, meetingId: 'meeting-new' });
+    const old = { id: 's1', meetingId: 'meeting-old', content: 'tail', startTime: 0, endTime: 1 };
+    const live = { id: 's2', meetingId: 'meeting-new', content: 'hello', startTime: 0, endTime: 1 };
+
+    listeners.segment(old);
+    listeners.segment(live);
+
+    expect(useRecordingStore.getState().liveSegments).toEqual([live]);
+    expect(meetingStoreState.addTranscriptSegment).toHaveBeenCalledTimes(2);
   });
 });
 

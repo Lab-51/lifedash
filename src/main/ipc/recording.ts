@@ -119,8 +119,11 @@ export function registerRecordingHandlers(mainWindow: BrowserWindow): void {
     await audioProcessor.startRecording(validMeetingId, language);
   });
 
-  ipcMain.handle('recording:stop', async () => {
-    const audioPath = await audioProcessor.stopRecording();
+  // Resolves once the audio is saved; the transcript finishes in the background
+  // (`recording:transcript-finished`). `discard` is Cancel: nothing more is written.
+  ipcMain.handle('recording:stop', async (_event, opts: unknown) => {
+    const discard = typeof opts === 'object' && opts !== null && (opts as { discard?: unknown }).discard === true;
+    const audioPath = await audioProcessor.stopRecording({ discard });
     return audioPath;
   });
 

@@ -168,14 +168,20 @@ interface DeferredWindow {
 let deferredWindows: DeferredWindow[] = [];
 /** True once stop() started draining: nothing is parked or measured any more. */
 let draining = false;
+/**
+ * Batch session (transcriptResumeService finishing a saved WAV after a restart):
+ * one window at a time, no slow-transcription guard (a file is fed faster than
+ * real time by design), and no progress events, which belong to a live Stop.
+ */
+let batchMode = false;
 
 function maxConcurrent(): number {
-  return loadLevel === 0 ? MAX_CONCURRENT : 1;
+  return loadLevel === 0 && !batchMode ? MAX_CONCURRENT : 1;
 }
 
 /** Feed one full live window's whisper duration to the guard. */
 function noteWindowDuration(durationMs: number): void {
-  if (draining || loadLevel !== 0) return;
+  if (draining || batchMode || loadLevel !== 0) return;
   slowStreak = durationMs > SLOW_WINDOW_MS ? slowStreak + 1 : 0;
   if (slowStreak < SLOW_STREAK_TO_STEP_DOWN) return;
   slowStreak = 0;
@@ -184,7 +190,7 @@ function noteWindowDuration(durationMs: number): void {
 
 /** Feed the live queue length to the guard: level 1 steps to 2 only once far behind. */
 function noteBacklog(): void {
-  if (draining || loadLevel !== 1 || activeProvider !== 'local') return;
+  if (draining || batchMode || loadLevel !== 1 || activeProvider !== 'local') return;
   if (pendingSegments.length < DEFER_BACKLOG_WINDOWS) return;
   stepDown(`${pendingSegments.length} windows behind`);
 }
@@ -290,7 +296,7 @@ export function isActive(): boolean {
 
 /** Emit a progress event to the renderer */
 function emitProgress(phase: TranscriptionProgress['phase']): void {
-  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (batchMode || !mainWindow || mainWindow.isDestroyed()) return;
   mainWindow.webContents.send('recording:processing-progress', {
     phase,
     currentSegment: segmentsCompleted,
@@ -316,7 +322,14 @@ export function getProgress(): TranscriptionProgress {
  * Resolves the configured provider, then either initializes local Whisper
  * or prepares for cloud API dispatching.
  */
-export async function start(meetingId: string, language?: string): Promise<void> {
+export interface StartOptions {
+  /** Window index of the first window fed, so a resumed WAV keeps its original timestamps. */
+  firstSegmentIndex?: number;
+  /** See `batchMode`. */
+  batch?: boolean;
+}
+
+export async function start(meetingId: string, language?: string, opts: StartOptions = {}): Promise<void> {
   // Claimed BEFORE the first await: every early return below still leaves the
   // session owned by this module until stop() releases it (see isActive()).
   recordingActive = true;
@@ -367,6 +380,8 @@ export async function start(meetingId: string, language?: string): Promise<void>
   // Common state reset
   currentMeetingId = meetingId;
   channels = makeChannelStates();
+  channels.mixed.segmentIndex = opts.firstSegmentIndex ?? 0;
+  batchMode = opts.batch ?? false;
   splitChannels = false;
   channelModeResolved = false;
   lastTranscriptText = '';
@@ -515,6 +530,23 @@ export async function stop(): Promise<void> {
   }
 }
 
+/**
+ * Drop every window not yet handed to whisper, then stop: only the window(s)
+ * already in flight finish. For cancelling a batch resume when a live recording
+ * needs the pipeline; the dropped audio is still in the WAV.
+ */
+export async function abort(): Promise<void> {
+  pendingSegments = [];
+  deferredWindows = [];
+  for (const channel of AUDIO_CHANNELS) channels[channel].accumulator = Buffer.alloc(0);
+  await stop();
+}
+
+/** Windows queued or in flight — a batch feeder waits on this to keep memory flat. */
+export function getBacklog(): number {
+  return pendingSegments.length + activeTranscriptions + deferredWindows.length;
+}
+
 async function stopInternal(): Promise<void> {
   // Allow stop for both local and API modes
   if (activeProvider === 'local' && !whisperContext) return;
@@ -546,7 +578,11 @@ async function stopInternal(): Promise<void> {
   }
 
   // Wait for pending transcriptions to finish
+  const drainStartedAt = Date.now();
+  const windowsLeft = getBacklog();
   await waitForPending();
+  const drainMs = Date.now() - drainStartedAt;
+  const releaseStartedAt = Date.now();
 
   // Release whisper context
   if (whisperContext) {
@@ -565,7 +601,11 @@ async function stopInternal(): Promise<void> {
   activeProvider = 'local';
   activeInitialPrompt = '';
   draining = false;
-  log.info('Stopped');
+  batchMode = false;
+  // Stop-phase timing (2026-11-25): the next real Stop shows where its time goes.
+  log.info(
+    `Stopped (${windowsLeft} windows left at stop, drain ${drainMs} ms, release ${Date.now() - releaseStartedAt} ms)`,
+  );
 }
 
 /**

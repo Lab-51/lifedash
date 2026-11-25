@@ -13,6 +13,11 @@
 // WAV byte count), and a coverage write that fails can never fail the stop --
 // a recording that was made and saved is not reported as failed because its
 // bookkeeping could not be written.
+//
+// Since 2026-11-25 stopRecording resolves once the WAV is saved and the
+// transcript finishes in the background: coverage, the 'completed' flip (main
+// now owns it) and `recording:transcript-finished` all come after the return,
+// and waitForStopToFinish is what waits for them.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
@@ -51,6 +56,7 @@ vi.mock('../transcriptionService', () => ({
   setMainWindow: vi.fn(),
   start: vi.fn().mockResolvedValue(undefined),
   stop: vi.fn().mockResolvedValue(undefined),
+  abort: vi.fn().mockResolvedValue(undefined),
   addChunk: vi.fn(),
   getProgress: vi.fn(() => ({})),
   getLastTranscript: vi.fn(() => ''),
@@ -58,7 +64,11 @@ vi.mock('../transcriptionService', () => ({
   getActiveProvider: vi.fn(() => 'local'),
   getActiveModelName: vi.fn(() => 'whisper-large.bin'),
 }));
-vi.mock('../meetingService', () => ({ setTranscriptionCoverage: vi.fn().mockResolvedValue(undefined) }));
+vi.mock('../meetingService', () => ({
+  setTranscriptionCoverage: vi.fn().mockResolvedValue(undefined),
+  updateMeeting: vi.fn().mockResolvedValue(undefined),
+}));
+vi.mock('../transcriptResumeService', () => ({ cancelTranscriptResume: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('../liveTriageService', () => ({
   setMainWindow: vi.fn(),
   startTriage: vi.fn(),
@@ -87,6 +97,9 @@ const MIXED = Buffer.from([1, 2, 3, 4]);
 const MIC = Buffer.from([5, 6, 7, 8]);
 const SYSTEM = Buffer.from([9, 10, 11, 12]);
 
+/** Let the background transcription start (it waits on a previous finish) settle. */
+const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+
 beforeEach(() => {
   vi.clearAllMocks();
 });
@@ -94,6 +107,7 @@ beforeEach(() => {
 describe('audioProcessor.addChunk', () => {
   it('writes ONLY the mixed sum to the WAV while handing every channel to transcription', async () => {
     await audioProcessor.startRecording('meeting-1');
+    await settle();
     wavHandle.write.mockClear(); // drop the placeholder header write
 
     audioProcessor.addChunk({ mixed: MIXED, mic: MIC, system: SYSTEM });
@@ -116,6 +130,7 @@ describe('audioProcessor.stopRecording — transcription coverage', () => {
     audioProcessor.addChunk({ mixed: ONE_SECOND, mic: null, system: ONE_SECOND });
 
     await audioProcessor.stopRecording();
+    await audioProcessor.waitForStopToFinish();
 
     expect(meetingService.setTranscriptionCoverage).toHaveBeenCalledTimes(1);
     const [meetingId, coverage] = vi.mocked(meetingService.setTranscriptionCoverage).mock.calls[0];
@@ -150,6 +165,7 @@ describe('audioProcessor.stopRecording — transcription coverage', () => {
 
     await audioProcessor.startRecording('meeting-cloud');
     await audioProcessor.stopRecording();
+    await audioProcessor.waitForStopToFinish();
 
     const [, coverage] = vi.mocked(meetingService.setTranscriptionCoverage).mock.calls[0];
     expect(coverage).toMatchObject({ provider: 'deepgram', model: null });
@@ -162,9 +178,102 @@ describe('audioProcessor.stopRecording — transcription coverage', () => {
     audioProcessor.addChunk({ mixed: ONE_SECOND, mic: null, system: ONE_SECOND });
 
     const audioPath = await audioProcessor.stopRecording();
+    await audioProcessor.waitForStopToFinish();
 
     expect(meetingService.setTranscriptionCoverage).toHaveBeenCalledTimes(1);
     expect(audioPath).toContain('meeting-writefail.wav');
+    // The meeting is still completed: its transcript is saved either way.
+    expect(meetingService.updateMeeting).toHaveBeenCalledWith('meeting-writefail', { status: 'completed' });
+  });
+});
+
+describe('audioProcessor.stopRecording — transcript finishes in the background (2026-11-25)', () => {
+  const win = { isDestroyed: () => false, webContents: { send: vi.fn() } };
+
+  beforeEach(() => {
+    audioProcessor.setMainWindow(win as never);
+  });
+
+  it('returns once the audio is saved and completes the meeting only after the transcript', async () => {
+    await audioProcessor.startRecording('meeting-bg');
+    await settle();
+    let releaseFlush!: () => void;
+    vi.mocked(transcriptionService.stop).mockImplementationOnce(
+      () => new Promise<void>((resolve) => (releaseFlush = resolve)),
+    );
+
+    const audioPath = await audioProcessor.stopRecording();
+
+    // Stop is back while whisper is still working: nothing is final yet.
+    expect(audioPath).toContain('meeting-bg.wav');
+    expect(audioProcessor.isStopInFlight()).toBe(true);
+    expect(meetingService.updateMeeting).not.toHaveBeenCalled();
+    expect(win.webContents.send).not.toHaveBeenCalledWith('recording:transcript-finished', expect.anything());
+
+    releaseFlush();
+    await audioProcessor.waitForStopToFinish();
+
+    expect(meetingService.setTranscriptionCoverage).toHaveBeenCalledTimes(1);
+    expect(meetingService.updateMeeting).toHaveBeenCalledWith('meeting-bg', { status: 'completed' });
+    // Coverage lands BEFORE the completed flip, so the brief hooks read it.
+    expect(vi.mocked(meetingService.setTranscriptionCoverage).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(meetingService.updateMeeting).mock.invocationCallOrder[0],
+    );
+    expect(win.webContents.send).toHaveBeenCalledWith('recording:transcript-finished', { meetingId: 'meeting-bg' });
+    expect(audioProcessor.isStopInFlight()).toBe(false);
+  });
+
+  it('discard drops the queue, never completes the meeting, and resolves after the pipeline is free', async () => {
+    await audioProcessor.startRecording('meeting-cancel');
+    await settle();
+    let releaseAbort!: () => void;
+    vi.mocked(transcriptionService.abort).mockImplementationOnce(
+      () => new Promise<void>((resolve) => (releaseAbort = resolve)),
+    );
+
+    let returned = false;
+    const stopping = audioProcessor.stopRecording({ discard: true }).then(() => (returned = true));
+    await new Promise((r) => setTimeout(r, 20));
+    expect(returned).toBe(false); // the caller deletes the meeting next: wait for the pipeline
+
+    releaseAbort();
+    await stopping;
+    expect(transcriptionService.stop).not.toHaveBeenCalled();
+    expect(meetingService.setTranscriptionCoverage).not.toHaveBeenCalled();
+    expect(meetingService.updateMeeting).not.toHaveBeenCalled();
+  });
+
+  it('a new recording waits for the previous transcript and loses none of its own audio', async () => {
+    await audioProcessor.startRecording('meeting-old');
+    await settle();
+    let releaseFlush!: () => void;
+    vi.mocked(transcriptionService.stop).mockImplementationOnce(
+      () => new Promise<void>((resolve) => (releaseFlush = resolve)),
+    );
+    await audioProcessor.stopRecording();
+    vi.mocked(transcriptionService.start).mockClear();
+    vi.mocked(transcriptionService.addChunk).mockClear();
+
+    await audioProcessor.startRecording('meeting-new');
+    const first = { mixed: Buffer.from([1, 1]), mic: null, system: Buffer.from([1, 1]) };
+    const second = { mixed: Buffer.from([2, 2]), mic: null, system: Buffer.from([2, 2]) };
+    audioProcessor.addChunk(first);
+    audioProcessor.addChunk(second);
+    await settle();
+
+    // The pipeline still belongs to the old meeting: the new one has not started on it.
+    expect(transcriptionService.start).not.toHaveBeenCalled();
+    expect(transcriptionService.addChunk).not.toHaveBeenCalled();
+
+    releaseFlush();
+    await audioProcessor.waitForStopToFinish();
+    await settle();
+
+    expect(transcriptionService.start).toHaveBeenCalledWith('meeting-new', undefined);
+    expect(vi.mocked(transcriptionService.addChunk).mock.calls.map((c) => c[0])).toEqual([first, second]);
+
+    await audioProcessor.stopRecording();
+    await audioProcessor.waitForStopToFinish();
   });
 });
 
