@@ -3,6 +3,10 @@
 All notable changes per released version. Generated from git history; newest first.
 Commit subjects are truncated to their headline clause — see `git log` for full rationale.
 
+## v2.20.0 — 2026-11-25
+- release: prep v2.20.0
+- feat(recording): Stop frees the screen once the audio is saved and the transcript finishes in the background
+
 ## v2.19.1 — 2026-11-23
 - release: prep v2.19.1
 - fix(transcription): Stop no longer waits for a whole call's transcript
