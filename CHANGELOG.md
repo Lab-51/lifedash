@@ -3,6 +3,11 @@
 All notable changes per released version. Generated from git history; newest first.
 Commit subjects are truncated to their headline clause — see `git log` for full rationale.
 
+## v2.21.0 — 2026-11-25
+- release: prep v2.21.0
+- fix(transcription): keep up with two-channel calls and never let a previous catch-up run during a new call
+- fix(transcription): a resume never marks a meeting done when transcription could not start
+
 ## v2.20.0 — 2026-11-25
 - release: prep v2.20.0
 - feat(recording): Stop frees the screen once the audio is saved and the transcript finishes in the background
