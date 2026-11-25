@@ -592,6 +592,16 @@ export function dropQueued(): void {
   deferredWindows = [];
 }
 
+/**
+ * True when start() actually set a session up (a whisper model loaded or a cloud
+ * key found). start() returns quietly without one, and a batch resume must then
+ * not report the transcript as finished (2026-11-25 smoke: a copy without models
+ * marked three meetings complete in 0.2 s).
+ */
+export function isReady(): boolean {
+  return currentMeetingId !== null;
+}
+
 /** Windows queued or in flight — a batch feeder waits on this to keep memory flat. */
 export function getBacklog(): number {
   return pendingSegments.length + activeTranscriptions + deferredWindows.length;

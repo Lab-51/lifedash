@@ -26,6 +26,7 @@ vi.mock('../logger', () => ({
 }));
 vi.mock('../transcriptionService', () => ({
   isActive: vi.fn(() => false),
+  isReady: vi.fn(() => true),
   start: vi.fn().mockResolvedValue(undefined),
   stop: vi.fn().mockResolvedValue(undefined),
   abort: vi.fn().mockResolvedValue(undefined),
@@ -208,6 +209,20 @@ describe('scheduleTranscriptResume', () => {
     await run;
 
     expect(transcriptionService.start).not.toHaveBeenCalled();
+    expect(meetingService.updateMeeting).not.toHaveBeenCalled();
+    await resumePendingTranscripts(); // drain the kept job so later tests start empty
+  });
+
+  it('never marks a meeting done when transcription could not start (no model)', async () => {
+    // Found by the 2.21.0 smoke: a profile without whisper models "finished"
+    // three meetings in 0.2 s, with no transcript at all.
+    wavOfSeconds(30);
+    vi.mocked(transcriptionService.isReady).mockReturnValueOnce(false);
+
+    await scheduleTranscriptResume([job({ meetingId: 'm-nomodel', audioMs: 30_000 })], 0);
+
+    expect(transcriptionService.addChunk).not.toHaveBeenCalled();
+    expect(meetingService.setTranscriptionCoverage).not.toHaveBeenCalled();
     expect(meetingService.updateMeeting).not.toHaveBeenCalled();
     await resumePendingTranscripts(); // drain the kept job so later tests start empty
   });

@@ -158,6 +158,13 @@ async function resumeOne(job: ResumeJob): Promise<boolean> {
       firstSegmentIndex: firstIndex,
       batch: true,
     });
+    if (!transcriptionService.isReady()) {
+      // No whisper model (or cloud key): nothing would be transcribed. Keep the
+      // meeting as it is and try again on the next launch, never mark it done.
+      await transcriptionService.stop();
+      log.warn(`Resume of meeting ${job.meetingId} postponed: transcription is not available`);
+      return false;
+    }
     let completedRun = false;
     try {
       completedRun = await feedWav(job.wavPath, audioStartMs);
