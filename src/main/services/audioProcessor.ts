@@ -32,7 +32,12 @@ import { createLogger } from './logger';
 import { createWavHeader } from './wavUtils';
 import { setActiveMeetingId } from './recordingState';
 import { pinChatModelForRecording, releaseChatModelPin } from './recordingModelPin';
-import { cancelTranscriptResume } from './transcriptResumeService';
+import {
+  cancelTranscriptResume,
+  enqueueTranscriptResume,
+  resumePendingTranscripts,
+  setTranscriptFinishedNotifier,
+} from './transcriptResumeService';
 import { LIVE_PROPOSALS_ENABLED } from '../../shared/features';
 
 const log = createLogger('Audio');
@@ -69,6 +74,11 @@ export function setMainWindow(win: BrowserWindow): void {
   mainWindow = win;
   transcriptionService.setMainWindow(win);
   liveTriageService.setMainWindow(win);
+  setTranscriptFinishedNotifier((meetingId) => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('recording:transcript-finished', { meetingId });
+    }
+  });
 }
 
 export function isRecording(): boolean {
@@ -146,6 +156,7 @@ export async function startRecording(meetingId: string, language?: string): Prom
   transcriptionReady = (async () => {
     try {
       await cancelTranscriptResume();
+      yieldPreviousFinish();
       await waitForStopToFinish();
       const waitedMs = Date.now() - waitStartedAt;
       if (waitedMs > 1000) log.info(`Transcription waited ${waitedMs} ms for the previous transcript to finish`);
@@ -247,7 +258,13 @@ export async function stopRecording(opts: { discard?: boolean } = {}): Promise<s
       log.error('Transcription flush failed:', err);
     });
 
-  const wavSaved = finalizeWav().catch((err: unknown) => {
+  // This session's file, by value (see finalizeWav).
+  const audioBytes = dataBytes;
+  const fd = wavFd;
+  wavFd = null;
+  const finishState: FinishState = { meetingId: stoppedMeetingId, yielded: false, resumable: fd !== null };
+  currentFinish = finishState;
+  const wavSaved = finalizeWav(fd, wavPath, audioBytes).catch((err: unknown) => {
     log.error('Failed to finalize WAV:', err);
     return '';
   });
@@ -259,15 +276,34 @@ export async function stopRecording(opts: { discard?: boolean } = {}): Promise<s
       const audioPath = await wavSaved;
       await flushed;
       if (opts.discard) return;
+      if (finishState.yielded && audioPath) {
+        // A new call needed the pipeline: the rest is transcribed from the WAV once
+        // that call's own transcript is done (resumePendingTranscripts below).
+        enqueueTranscriptResume([
+          {
+            meetingId: stoppedMeetingId,
+            wavPath: audioPath,
+            lastSegmentEndMs: 0, // the resume reads the newest saved row itself
+            audioMs: Math.round(audioBytes / WAV_BYTES_PER_MS),
+            markCompleted: true,
+          },
+        ]);
+        log.info(`Recording ${stoppedMeetingId}: transcript paused for a new recording, resumes after it`);
+        return;
+      }
       // After the flush, so the windows stop() itself dispatched are counted.
-      await persistCoverage(stoppedMeetingId, provider, model, audioPath);
+      await persistCoverage(stoppedMeetingId, provider, model, audioPath, audioBytes);
       await markCompleted(stoppedMeetingId);
       sendProgress('finalizing', 100);
       if (mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('recording:transcript-finished', { meetingId: stoppedMeetingId });
       }
       log.info(`Recording ${stoppedMeetingId}: transcript finished ${Date.now() - stopStartedAt} ms after Stop`);
+      // Meetings whose finish stepped aside for this one continue now, unless
+      // another recording is already running.
+      if (!currentMeetingId) void resumePendingTranscripts();
     } finally {
+      if (currentFinish === finishState) currentFinish = null;
       releaseChatModelPin();
     }
   })();
@@ -309,6 +345,30 @@ function sendProgress(phase: TranscriptionProgress['phase'], percentComplete: nu
   } satisfies TranscriptionProgress);
 }
 
+interface FinishState {
+  meetingId: string;
+  /** Set when a new recording took the pipeline: the rest is resumed from the WAV later. */
+  yielded: boolean;
+  /** Without a WAV there is nothing to resume from, so such a finish never yields. */
+  resumable: boolean;
+}
+/** The background finish still running, if any. */
+let currentFinish: FinishState | null = null;
+
+/**
+ * A new recording starts while the last Stop is still finishing its transcript:
+ * drop that finish's queue so the new call's live transcription is not stuck
+ * behind it (and the GPU is not busy with it during the call). Only the window
+ * in flight completes; the rest is resumed from the WAV after the new call.
+ */
+function yieldPreviousFinish(): void {
+  const finish = currentFinish;
+  if (!finish || !finish.resumable || finish.yielded) return;
+  finish.yielded = true;
+  transcriptionService.dropQueued();
+  log.info(`New recording: the transcript of ${finish.meetingId} steps aside and resumes after it`);
+}
+
 /** The background transcript finish of the last Stop; null once it settled. */
 let stopInFlight: Promise<void> | null = null;
 
@@ -343,13 +403,14 @@ async function persistCoverage(
   provider: string,
   model: string | null,
   audioPath: string,
+  audioBytes: number,
 ): Promise<void> {
   try {
     const tally = transcriptionService.getCoverageTally();
     const coverage: TranscriptionCoverage = {
       version: 1,
       endedBy: 'stop',
-      audioMs: audioPath ? Math.round(dataBytes / WAV_BYTES_PER_MS) : null,
+      audioMs: audioPath ? Math.round(audioBytes / WAV_BYTES_PER_MS) : null,
       provider,
       model,
       windowStampMs: WINDOW_STAMP_MS,
@@ -366,24 +427,27 @@ async function persistCoverage(
   }
 }
 
-async function finalizeWav(): Promise<string> {
-  if (!wavFd) return '';
+/**
+ * Write the real header and close the file. Takes the session's handle, path and
+ * byte count by value: with Stop no longer blocking, the next recording may open
+ * its own file while this one is still being closed.
+ */
+async function finalizeWav(fd: FileHandle | null, filePath: string, bytes: number): Promise<string> {
+  if (!fd) return '';
   try {
-    const header = createWavHeader(dataBytes);
-    await wavFd.write(header, 0, 44, 0); // overwrite placeholder at position 0
-    await wavFd.close();
-    log.debug(`Saved WAV: ${wavPath} (${(dataBytes / 1024).toFixed(0)} KB)`);
-    return wavPath;
+    const header = createWavHeader(bytes);
+    await fd.write(header, 0, 44, 0); // overwrite placeholder at position 0
+    await fd.close();
+    log.debug(`Saved WAV: ${filePath} (${(bytes / 1024).toFixed(0)} KB)`);
+    return filePath;
   } catch (err) {
     log.error('Failed to finalize WAV:', err);
     try {
-      await wavFd.close();
+      await fd.close();
     } catch {
       /* ignore */
     }
     return '';
-  } finally {
-    wavFd = null;
   }
 }
 

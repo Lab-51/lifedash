@@ -425,6 +425,33 @@ describe('transcriptionService — slower-than-realtime guard', () => {
     expect(starts.slice(0, calls - 1)).toEqual(Array.from({ length: calls - 1 }, (_, n) => n * 10000));
   });
 
+  it('light mode on a two-channel call transcribes the mixed sum once, in time with the call', async () => {
+    // Real use (2026-11-25): mic and system both speaking = two ~9.5 s windows per
+    // 9 s step, half real time; the whole call was parked until Stop.
+    whisperTakes(() => 9000);
+    await transcriptionService.start('meeting-split-slow', 'en');
+    for (const calls of [2, 4]) {
+      transcriptionService.addChunk(split(MIC_WINDOW, SYSTEM_WINDOW));
+      await vi.waitFor(() => expect(whisperCtx.transcribeData).toHaveBeenCalledTimes(calls));
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    expect(fallbackToasts()).toEqual([expect.stringContaining('transcribed together')]);
+
+    for (const calls of [5, 6]) {
+      transcriptionService.addChunk(split(MIC_WINDOW, SYSTEM_WINDOW));
+      await vi.waitFor(() => expect(whisperCtx.transcribeData).toHaveBeenCalledTimes(calls));
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+
+    expect(transcribedWindows().slice(4)).toEqual(['mixed', 'mixed']); // one call per step, not two
+    const rows = vi.mocked(meetingService.addTranscriptSegment).mock.calls;
+    // The mixed windows continue the call's clock: windows 2 and 3, unlabelled.
+    expect(rows.slice(4).map((c) => [c[2], c[4]])).toEqual([
+      [20_000, null],
+      [30_000, null],
+    ]);
+  });
+
   it('a batch resume keeps original timestamps and never steps down or toasts', async () => {
     // transcriptResumeService feeds a saved WAV faster than real time on purpose.
     whisperTakes(() => 20_000);

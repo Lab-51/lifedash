@@ -54,6 +54,21 @@ describe('MeetingCardModern — unassigned-pending pill', () => {
   });
 });
 
+// 2026-11-25: a stopped meeting stays at 'recording' until its background
+// transcript finishes; three of them showed LIVE at once in real use.
+describe('MeetingCardModern — status badge', () => {
+  it('says Live only for a recording that has not ended', () => {
+    render(<MeetingCardModern meeting={makeMeeting({ status: 'recording', endedAt: null })} onClick={vi.fn()} />);
+    expect(screen.getByText('Live')).toBeInTheDocument();
+  });
+
+  it('says Transcribing, not Live, for a stopped meeting whose transcript is still finishing', () => {
+    render(<MeetingCardModern meeting={makeMeeting({ status: 'recording' })} onClick={vi.fn()} />);
+    expect(screen.getByText('Transcribing')).toBeInTheDocument();
+    expect(screen.queryByText('Live')).toBeNull();
+  });
+});
+
 // === TRANS-COV.1 Task 5 — the coverage marker beside the duration ===========
 
 describe('MeetingCardModern — coverage marker', () => {

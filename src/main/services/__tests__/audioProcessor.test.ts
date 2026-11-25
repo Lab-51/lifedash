@@ -57,6 +57,7 @@ vi.mock('../transcriptionService', () => ({
   start: vi.fn().mockResolvedValue(undefined),
   stop: vi.fn().mockResolvedValue(undefined),
   abort: vi.fn().mockResolvedValue(undefined),
+  dropQueued: vi.fn(),
   addChunk: vi.fn(),
   getProgress: vi.fn(() => ({})),
   getLastTranscript: vi.fn(() => ''),
@@ -68,7 +69,12 @@ vi.mock('../meetingService', () => ({
   setTranscriptionCoverage: vi.fn().mockResolvedValue(undefined),
   updateMeeting: vi.fn().mockResolvedValue(undefined),
 }));
-vi.mock('../transcriptResumeService', () => ({ cancelTranscriptResume: vi.fn().mockResolvedValue(undefined) }));
+vi.mock('../transcriptResumeService', () => ({
+  cancelTranscriptResume: vi.fn().mockResolvedValue(undefined),
+  enqueueTranscriptResume: vi.fn(),
+  resumePendingTranscripts: vi.fn().mockResolvedValue(undefined),
+  setTranscriptFinishedNotifier: vi.fn(),
+}));
 vi.mock('../liveTriageService', () => ({
   setMainWindow: vi.fn(),
   startTriage: vi.fn(),
@@ -89,6 +95,7 @@ vi.mock('drizzle-orm', () => ({ eq: (...a: unknown[]) => ({ eq: a }) }));
 import * as audioProcessor from '../audioProcessor';
 import * as transcriptionService from '../transcriptionService';
 import * as meetingService from '../meetingService';
+import * as transcriptResumeService from '../transcriptResumeService';
 
 /** 32,000 bytes of 16 kHz mono Int16 audio = exactly 1,000 ms. */
 const ONE_SECOND = Buffer.alloc(32_000);
@@ -243,7 +250,45 @@ describe('audioProcessor.stopRecording — transcript finishes in the background
     expect(meetingService.updateMeeting).not.toHaveBeenCalled();
   });
 
-  it('a new recording waits for the previous transcript and loses none of its own audio', async () => {
+  it('a new recording makes a long finish step aside, and that meeting is resumed after it', async () => {
+    // Real use (2026-11-25): an hour-long call's catch-up ran during the next call
+    // and the next call's transcript queued behind it.
+    await audioProcessor.startRecording('meeting-long');
+    await settle();
+    audioProcessor.addChunk({ mixed: ONE_SECOND, mic: null, system: ONE_SECOND });
+    let releaseFlush!: () => void;
+    vi.mocked(transcriptionService.stop).mockImplementationOnce(
+      () => new Promise<void>((resolve) => (releaseFlush = resolve)),
+    );
+    await audioProcessor.stopRecording();
+
+    await audioProcessor.startRecording('meeting-next');
+    expect(transcriptionService.dropQueued).toHaveBeenCalledTimes(1);
+    releaseFlush(); // the window in flight finishes
+
+    await vi.waitFor(() => expect(transcriptionService.start).toHaveBeenLastCalledWith('meeting-next', undefined));
+    // Not completed and no coverage now: the rest is queued for after this call.
+    expect(meetingService.updateMeeting).not.toHaveBeenCalledWith('meeting-long', expect.anything());
+    expect(meetingService.setTranscriptionCoverage).not.toHaveBeenCalledWith('meeting-long', expect.anything());
+    expect(transcriptResumeService.enqueueTranscriptResume).toHaveBeenCalledWith([
+      {
+        meetingId: 'meeting-long',
+        wavPath: expect.stringContaining('meeting-long.wav'),
+        lastSegmentEndMs: 0,
+        audioMs: 1_000,
+        markCompleted: true,
+      },
+    ]);
+    expect(transcriptResumeService.resumePendingTranscripts).not.toHaveBeenCalled();
+
+    // The new call ends and finishes: now the paused meeting continues.
+    await audioProcessor.stopRecording();
+    await audioProcessor.waitForStopToFinish();
+    expect(meetingService.updateMeeting).toHaveBeenCalledWith('meeting-next', { status: 'completed' });
+    expect(transcriptResumeService.resumePendingTranscripts).toHaveBeenCalledTimes(1);
+  });
+
+  it('a new recording waits for the window still in flight and loses none of its own audio', async () => {
     await audioProcessor.startRecording('meeting-old');
     await settle();
     let releaseFlush!: () => void;

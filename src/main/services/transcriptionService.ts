@@ -113,6 +113,15 @@ let channels = makeChannelStates();
 // FIRST chunk and never changed afterwards, so a channel's window clock can
 // never restart part-way through a recording.
 let splitChannels = false;
+/**
+ * Light mode on a split session: transcribe the mixed sum once instead of mic and
+ * system separately, which halves whisper's work when both sides speak (2026-11-25:
+ * ~9.5 s per window and two windows per 9 s step = half real time; the whole call
+ * was parked). The session loses its Me/Them labels from that point on. The mixed
+ * channel's clock is kept in step all along by shadowFeed, so its first real window
+ * gets the right timestamp.
+ */
+let mixedOnly = false;
 let channelModeResolved = false;
 
 let whisperContext: WhisperContext | null = null;
@@ -197,11 +206,21 @@ function noteBacklog(): void {
 
 function stepDown(detail: string): void {
   loadLevel = (loadLevel + 1) as LoadLevel;
+  if (loadLevel === 1 && splitChannels) {
+    mixedOnly = true;
+    // Their partial windows are covered by the mixed one from here on.
+    channels.mic.accumulator = Buffer.alloc(0);
+    channels.system.accumulator = Buffer.alloc(0);
+  }
   const reason =
     loadLevel === 1
-      ? 'Transcription is slower than real time on this computer — switched to a lighter mode to keep your call smooth'
+      ? mixedOnly
+        ? 'Transcription is slower than real time on this computer — your voice and the others are now transcribed together to keep up'
+        : 'Transcription is slower than real time on this computer — switched to a lighter mode to keep your call smooth'
       : 'Transcription has fallen behind the call — the rest of the transcript will be finished after you stop recording';
-  log.warn(`Slow-transcription guard: level ${loadLevel} (${detail}, backend ${whisperBackend})`);
+  log.warn(
+    `Slow-transcription guard: level ${loadLevel} (${detail}, backend ${whisperBackend}${mixedOnly ? ', mixed only' : ''})`,
+  );
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('transcription:status-changed', { status: 'fallback', reason });
   }
@@ -383,6 +402,7 @@ export async function start(meetingId: string, language?: string, opts: StartOpt
   channels.mixed.segmentIndex = opts.firstSegmentIndex ?? 0;
   batchMode = opts.batch ?? false;
   splitChannels = false;
+  mixedOnly = false;
   channelModeResolved = false;
   lastTranscriptText = '';
   pendingSegments = [];
@@ -487,6 +507,11 @@ export function addChunk(payload: AudioChunkBuffers): void {
     return;
   }
 
+  if (mixedOnly) {
+    feedChannel('mixed', payload.mixed);
+    return;
+  }
+
   // Once split, the mic channel is fed on EVERY callback so its window clock
   // stays in lockstep with the system channel's. While the mic track is down the
   // renderer sends `mic: null` and we feed silence, which the RMS fast path
@@ -494,6 +519,21 @@ export function addChunk(payload: AudioChunkBuffers): void {
   // the mic timestamps stay truthful when it comes back.
   feedChannel('mic', payload.mic ?? Buffer.alloc(payload.system.byteLength));
   feedChannel('system', payload.system);
+  shadowFeed(payload.mixed);
+}
+
+/**
+ * Keep the mixed channel's accumulator and window clock in step with the split
+ * channels without queuing anything, so a switch to mixedOnly starts on the
+ * current partial window with the right index. Holds under one window of audio.
+ */
+function shadowFeed(chunk: Buffer): void {
+  const state = channels.mixed;
+  state.accumulator = Buffer.concat([state.accumulator, chunk]);
+  while (state.accumulator.byteLength >= BYTES_PER_SEGMENT) {
+    state.accumulator = state.accumulator.subarray(BYTES_PER_SEGMENT - OVERLAP_BYTES);
+    state.segmentIndex++;
+  }
 }
 
 /** Accumulate one channel's chunk and queue any whole 10-second windows it completes. */
@@ -542,6 +582,16 @@ export async function abort(): Promise<void> {
   await stop();
 }
 
+/**
+ * Drop every window not yet handed to whisper, without stopping: a stop() already
+ * draining then settles once the window(s) in flight finish. Used when a new
+ * recording needs the pipeline; the dropped audio is resumed from the WAV.
+ */
+export function dropQueued(): void {
+  pendingSegments = [];
+  deferredWindows = [];
+}
+
 /** Windows queued or in flight — a batch feeder waits on this to keep memory flat. */
 export function getBacklog(): number {
   return pendingSegments.length + activeTranscriptions + deferredWindows.length;
@@ -559,6 +609,8 @@ async function stopInternal(): Promise<void> {
     for (const channel of AUDIO_CHANNELS) {
       const state = channels[channel];
       if (state.accumulator.byteLength === 0) continue;
+      // The mixed accumulator of a split session is only shadowFeed's clock.
+      if (channel === 'mixed' && splitChannels && !mixedOnly) continue;
       pendingSegments.push({ channel, segment: Buffer.from(state.accumulator) });
       totalSegmentsQueued++;
       state.accumulator = Buffer.alloc(0);

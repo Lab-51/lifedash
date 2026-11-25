@@ -37,6 +37,13 @@ const STATUS_STYLES: Record<string, { label: string; className: string; icon: ty
     className: 'bg-rose-500/15 text-rose-400 border border-rose-500/30',
     icon: Mic,
   },
+  // Stopped, transcript still finishing in the background (status stays 'recording'
+  // until main marks it completed). Not live: no red ring, no pulsing mic.
+  transcribing: {
+    label: 'Transcribing',
+    className: 'bg-[var(--color-warm)]/10 text-[var(--color-warm)] border border-[var(--color-warm-dim)]/30',
+    icon: Loader2,
+  },
   processing: {
     label: 'Processing',
     className: 'bg-[var(--color-warm)]/10 text-[var(--color-warm)] border border-[var(--color-warm-dim)]/30',
@@ -88,7 +95,8 @@ const MeetingCardModern = memo(function MeetingCardModern({
   onClick,
   onDelete,
 }: MeetingCardModernProps) {
-  const status = STATUS_STYLES[meeting.status] || STATUS_STYLES.completed;
+  const statusKey = meeting.status === 'recording' && meeting.endedAt ? 'transcribing' : meeting.status;
+  const status = STATUS_STYLES[statusKey] || STATUS_STYLES.completed;
   const StatusIcon = status.icon;
   const hasActions = actionItemCount != null && actionItemCount > 0;
   const coverageLabel = coverageMarker(meeting);
@@ -131,7 +139,7 @@ const MeetingCardModern = memo(function MeetingCardModern({
     <div
       onClick={onClick}
       className={`group relative flex flex-col hud-panel clip-corner-cut-sm p-5 transition-all cursor-pointer hover:shadow-[0_0_12px_rgba(62,232,228,0.1)] ${
-        meeting.status === 'recording'
+        statusKey === 'recording'
           ? 'ring-2 ring-rose-500/20 !border-rose-500/30'
           : hasActions
             ? '!border-[var(--color-warm-dim)] hover:!border-[var(--color-warm)]'
@@ -169,7 +177,11 @@ const MeetingCardModern = memo(function MeetingCardModern({
             <StatusIcon
               size={11}
               className={
-                meeting.status === 'recording' ? 'animate-pulse' : meeting.status === 'processing' ? 'animate-spin' : ''
+                statusKey === 'recording'
+                  ? 'animate-pulse'
+                  : statusKey === 'processing' || statusKey === 'transcribing'
+                    ? 'animate-spin'
+                    : ''
               }
             />
             {status.label}

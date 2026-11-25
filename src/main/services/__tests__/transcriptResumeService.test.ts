@@ -51,7 +51,14 @@ vi.mock('../meetingService', () => ({
 
 import * as transcriptionService from '../transcriptionService';
 import * as meetingService from '../meetingService';
-import { cancelTranscriptResume, firstUnfinishedWindow, scheduleTranscriptResume } from '../transcriptResumeService';
+import {
+  cancelTranscriptResume,
+  enqueueTranscriptResume,
+  firstUnfinishedWindow,
+  resumePendingTranscripts,
+  scheduleTranscriptResume,
+  setTranscriptFinishedNotifier,
+} from '../transcriptResumeService';
 
 const HEADER = 44;
 const BYTES_PER_MS = 32;
@@ -135,6 +142,47 @@ describe('scheduleTranscriptResume', () => {
     expect(meetingService.updateMeeting).toHaveBeenCalledWith('m1', { status: 'completed' });
   });
 
+  it('picks up after the newest saved row, even past what the job was created with', async () => {
+    wavOfSeconds(60);
+    vi.mocked(meetingService.getMeeting).mockResolvedValueOnce({
+      id: 'm1',
+      transcriptionLanguage: 'cs',
+      segments: [{ endTime: 9_000 }, { endTime: 34_000 }],
+    } as never);
+
+    await scheduleTranscriptResume([job({ lastSegmentEndMs: 0 })], 0);
+
+    expect(transcriptionService.start).toHaveBeenCalledWith('m1', 'cs', { firstSegmentIndex: 4, batch: true });
+  });
+
+  it('a queued job waits for resumePendingTranscripts and then tells the renderer', async () => {
+    wavOfSeconds(30);
+    const notify = vi.fn();
+    setTranscriptFinishedNotifier(notify);
+
+    enqueueTranscriptResume([job({ audioMs: 30_000 })]);
+    expect(transcriptionService.start).not.toHaveBeenCalled(); // a recording owns the pipeline
+
+    await resumePendingTranscripts();
+    expect(meetingService.updateMeeting).toHaveBeenCalledWith('m1', { status: 'completed' });
+    expect(notify).toHaveBeenCalledWith('m1');
+    setTranscriptFinishedNotifier(null);
+  });
+
+  it('a cancelled job stays queued and finishes on the next run', async () => {
+    wavOfSeconds(60);
+    vi.mocked(transcriptionService.getBacklog).mockReturnValueOnce(0).mockReturnValue(5);
+    const run = scheduleTranscriptResume([job()], 0);
+    await vi.waitFor(() => expect(transcriptionService.addChunk).toHaveBeenCalledTimes(1));
+    await cancelTranscriptResume();
+    await run;
+    expect(meetingService.updateMeeting).not.toHaveBeenCalled();
+
+    vi.mocked(transcriptionService.getBacklog).mockReturnValue(0);
+    await resumePendingTranscripts();
+    expect(meetingService.updateMeeting).toHaveBeenCalledWith('m1', { status: 'completed' });
+  });
+
   it('a cancel aborts the pipeline and leaves the meeting for the next launch', async () => {
     wavOfSeconds(60);
     // One chunk goes in, then whisper is "busy": the feeder waits, so the cancel lands mid-run.
@@ -149,6 +197,7 @@ describe('scheduleTranscriptResume', () => {
     expect(transcriptionService.stop).not.toHaveBeenCalled();
     expect(meetingService.updateMeeting).not.toHaveBeenCalled();
     vi.mocked(transcriptionService.getBacklog).mockReturnValue(0);
+    await resumePendingTranscripts(); // drain the kept job so later tests start empty
   });
 
   it('a cancel during the start delay returns at once and runs nothing', async () => {
@@ -160,6 +209,7 @@ describe('scheduleTranscriptResume', () => {
 
     expect(transcriptionService.start).not.toHaveBeenCalled();
     expect(meetingService.updateMeeting).not.toHaveBeenCalled();
+    await resumePendingTranscripts(); // drain the kept job so later tests start empty
   });
 
   it('completes a stopped meeting with what it has when the WAV cannot be read', async () => {

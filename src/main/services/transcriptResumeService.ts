@@ -14,7 +14,9 @@
 // before the last saved row may be skipped; that is the accepted cost of never
 // writing a window twice.
 //
-// === IT ALWAYS YIELDS ===
+// === IT ALWAYS YIELDS, AND COMES BACK ===
+// The same queue holds a meeting whose background finish stepped aside for a new
+// call (audioProcessor): it is resumed once that call's own transcript is done.
 // One window at a time (batch mode), started after a delay so the launch stays
 // light, and cancelled the moment a live recording needs the pipeline: the
 // meeting is then left as it was and the next launch tries again. Cancelling
@@ -56,39 +58,65 @@ let running: Promise<void> | null = null;
 let cancelled = false;
 /** Wakes the start delay early when the run is cancelled. */
 let wakeDelay: (() => void) | null = null;
+/** Jobs not finished yet, oldest first. A cancelled job stays here for the next run. */
+let pending: ResumeJob[] = [];
+let notifyFinished: ((meetingId: string) => void) | null = null;
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/** Told when a resumed meeting is complete, so the renderer can refresh it. */
+export function setTranscriptFinishedNotifier(fn: ((meetingId: string) => void) | null): void {
+  notifyFinished = fn;
+}
 
 /** First window not yet transcribed, from the stamped end of the last saved row. */
 export function firstUnfinishedWindow(lastSegmentEndMs: number): number {
   return lastSegmentEndMs > 0 ? Math.floor((lastSegmentEndMs - 1) / WINDOW_STAMP_MS) + 1 : 0;
 }
 
-/** Run the jobs one after another in the background. Never rejects. */
+/** Queue jobs without starting them (a recording owns the pipeline right now). */
+export function enqueueTranscriptResume(jobs: ResumeJob[]): void {
+  for (const job of jobs) {
+    if (!pending.some((p) => p.meetingId === job.meetingId)) pending.push(job);
+  }
+}
+
+/** Queue the jobs and run everything queued in the background. Never rejects. */
 export function scheduleTranscriptResume(jobs: ResumeJob[], delayMs = START_DELAY_MS): Promise<void> {
-  if (jobs.length === 0) return Promise.resolve();
+  enqueueTranscriptResume(jobs);
+  return resumePendingTranscripts(delayMs);
+}
+
+/** Run what is queued (after `delayMs`), unless a run is already going. Never rejects. */
+export function resumePendingTranscripts(delayMs = 0): Promise<void> {
+  if (running) return running;
+  if (pending.length === 0) return Promise.resolve();
   cancelled = false;
   const run = (async () => {
-    await new Promise<void>((resolve) => {
-      const timer = setTimeout(resolve, delayMs);
-      wakeDelay = () => {
-        clearTimeout(timer);
-        resolve();
-      };
-    });
-    wakeDelay = null;
-    for (const job of jobs) {
-      if (cancelled) break;
+    if (delayMs > 0) {
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(resolve, delayMs);
+        wakeDelay = () => {
+          clearTimeout(timer);
+          resolve();
+        };
+      });
+      wakeDelay = null;
+    }
+    while (pending.length > 0 && !cancelled) {
+      const job = pending[0];
       try {
-        await resumeOne(job);
+        if (!(await resumeOne(job))) break; // interrupted: keep it queued
       } catch (err) {
         log.warn(`Resume of meeting ${job.meetingId} failed:`, err);
         // A stopped meeting must not stay at 'recording' forever because its WAV
         // cannot be read: complete it with the transcript it has.
-        if (job.markCompleted && !cancelled) {
+        if (job.markCompleted) {
           await meetingService.updateMeeting(job.meetingId, { status: 'completed' }).catch(() => undefined);
+          notifyFinished?.(job.meetingId);
         }
       }
+      pending = pending.filter((p) => p !== job);
     }
   })();
   running = run;
@@ -100,7 +128,8 @@ export function scheduleTranscriptResume(jobs: ResumeJob[], delayMs = START_DELA
 
 /**
  * Stop any resume now and wait until the pipeline is free. Only the window in
- * flight finishes; what was not transcribed is picked up on the next launch.
+ * flight finishes; the job stays queued and continues from its last saved row on
+ * the next resumePendingTranscripts (after the recording) or the next launch.
  */
 export async function cancelTranscriptResume(): Promise<void> {
   if (!running) return;
@@ -109,18 +138,18 @@ export async function cancelTranscriptResume(): Promise<void> {
   await running.catch(() => undefined);
 }
 
-async function resumeOne(job: ResumeJob): Promise<void> {
-  const firstIndex = firstUnfinishedWindow(job.lastSegmentEndMs);
-  const audioStartMs = firstIndex * WINDOW_ADVANCE_MS;
+/** True when the job is done; false when it was interrupted and stays queued. */
+async function resumeOne(job: ResumeJob): Promise<boolean> {
   const startedAt = Date.now();
+  const meeting = await meetingService.getMeeting(job.meetingId);
+  if (!meeting) return true; // deleted since
+  // Pick up after the newest saved row: a run cut short earlier may have added some.
+  const savedEnd = Math.max(job.lastSegmentEndMs, ...(meeting.segments ?? []).map((seg) => seg.endTime));
+  const firstIndex = firstUnfinishedWindow(savedEnd);
+  const audioStartMs = firstIndex * WINDOW_ADVANCE_MS;
 
   if (audioStartMs < job.audioMs - FEED_CHUNK_MS) {
-    if (transcriptionService.isActive()) {
-      log.info(`Resume of meeting ${job.meetingId} skipped: the transcription pipeline is busy`);
-      return;
-    }
-    const meeting = await meetingService.getMeeting(job.meetingId);
-    if (!meeting) return; // deleted since
+    if (cancelled || transcriptionService.isActive()) return false;
     log.info(
       `Resuming transcript of meeting ${job.meetingId} from window ${firstIndex} (${Math.round((job.audioMs - audioStartMs) / 1000)} s of audio)`,
     );
@@ -136,19 +165,20 @@ async function resumeOne(job: ResumeJob): Promise<void> {
       // Cancelled or failed: drop what is queued; only the window in flight finishes.
       if (!completedRun) await transcriptionService.abort();
     }
-    if (!completedRun) return;
+    if (!completedRun) return false;
     const provider = transcriptionService.getActiveProvider();
     const model = transcriptionService.getActiveModelName();
     await transcriptionService.stop();
     await writeCoverage(job, provider, model);
   }
 
-  if (cancelled) return;
   if (job.markCompleted) {
     // Through meetingService so the completed hooks start the brief, as a Stop would.
     await meetingService.updateMeeting(job.meetingId, { status: 'completed' });
+    notifyFinished?.(job.meetingId);
   }
-  log.info(`Transcript of meeting ${job.meetingId} finished after restart in ${Date.now() - startedAt} ms`);
+  log.info(`Transcript of meeting ${job.meetingId} resumed and finished in ${Date.now() - startedAt} ms`);
+  return true;
 }
 
 /** Feed the WAV from `audioStartMs` in 1 s chunks. False when cancelled part-way. */
