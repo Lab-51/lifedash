@@ -3,6 +3,10 @@
 All notable changes per released version. Generated from git history; newest first.
 Commit subjects are truncated to their headline clause — see `git log` for full rationale.
 
+## v2.21.1 — 2026-11-26
+- release: prep v2.21.1
+- fix(transcription): park a call only when live transcription is far slower than real time
+
 ## v2.21.0 — 2026-11-25
 - release: prep v2.21.0
 - fix(transcription): keep up with two-channel calls and never let a previous catch-up run during a new call
