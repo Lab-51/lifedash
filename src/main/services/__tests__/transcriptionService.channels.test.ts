@@ -384,8 +384,33 @@ describe('transcriptionService — slower-than-realtime guard', () => {
     expect(persisted()).toHaveLength(8);
   });
 
-  it('parks speech windows once light mode falls 20 windows behind and transcribes them at stop, in order', async () => {
-    whisperTakes(() => 9000);
+  it('keeps transcribing live when 20 windows behind but close to real time', async () => {
+    // Real use (2026-11-26): ~10 s per 9 s step in mixed-only mode, the backlog from
+    // a slow first minute; parking there cost an hour of transcription after Stop.
+    whisperTakes(() => 10_000);
+    await transcriptionService.start('meeting-near-pace', 'en');
+    await feedWindows(3, (fed) => fed); // light mode
+    let release!: () => void;
+    const hung = new Promise<void>((resolve) => (release = resolve));
+    const normal = whisperCtx.transcribeData.getMockImplementation()!;
+    whisperCtx.transcribeData.mockImplementationOnce((...args: unknown[]) => {
+      const call = normal(...(args as Parameters<typeof normal>));
+      return { ...call, promise: hung.then(() => call.promise) };
+    });
+    transcriptionService.addChunk(mixedOnly(MIXED_WINDOW));
+    await vi.waitFor(() => expect(whisperCtx.transcribeData).toHaveBeenCalledTimes(4));
+
+    for (let i = 0; i < 25; i++) transcriptionService.addChunk(mixedOnly(MIXED_WINDOW));
+    expect(fallbackToasts()).toHaveLength(1); // 20+ behind, but no level 2
+
+    release();
+    await vi.waitFor(() => expect(whisperCtx.transcribeData.mock.calls.length).toBeGreaterThan(6));
+    await transcriptionService.stop();
+    expect(fallbackToasts()).toHaveLength(1);
+  });
+
+  it('parks speech windows once light mode is 20 windows behind and far slower than real time, then transcribes them at stop, in order', async () => {
+    whisperTakes(() => 20_000); // more than 1.5x the 9 s step
     await transcriptionService.start('meeting-deferred', 'en');
     await feedWindows(3, (fed) => fed); // three slow windows: light mode
     expect(fallbackToasts()).toHaveLength(1);

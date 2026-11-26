@@ -155,15 +155,23 @@ const MAX_CONCURRENT = 2;
 //   0 normal   — MAX_CONCURRENT windows, the user's speed preset
 //   1 light    — one window at a time, `fast` preset (three consecutive slow windows)
 //   2 deferred — speech windows are parked and transcribed after Stop, only once
-//                level 1 has fallen DEFER_BACKLOG_WINDOWS behind the live audio
-// Level 2 used to follow three more slow windows, so a machine at ~9.5 s per 9 s
-// step (2026-11-23: nearly real time, call smooth) parked a whole 40-min call and
-// Stop then needed ~40 min. Every parked window is Stop-time wait, so parking is
-// kept for machines that truly cannot keep up.
+//                level 1 is DEFER_BACKLOG_WINDOWS behind AND finishing windows
+//                slower than PARK_PACE_MS each (it cannot catch up live)
+// Every parked window is Stop-time wait. 2026-11-23: level 2 after three slow
+// windows parked a whole call that ran at ~9.5 s per 9 s step. 2026-11-26: level 2
+// at 20 windows behind parked a 56-min call that ran at ~10 s per 9 s step in
+// mixed-only mode (the backlog came from the first minute's 30-50 s windows), and
+// the transcript then took about an hour after Stop. Staying live there ends the
+// call only ~10% behind, so parking is kept for machines far slower than real time.
 const SLOW_WINDOW_MS = 8000;
 const SLOW_STREAK_TO_STEP_DOWN = 3;
 /** Windows queued behind the live audio (~3 min at the 9 s step) before level 2. */
 const DEFER_BACKLOG_WINDOWS = 20;
+/** Live windows finishing slower than this (1.5x the 9 s step) cannot keep up. */
+const PARK_PACE_MS = 13_500;
+const PACE_SAMPLE = 10;
+/** Completion times of the most recent live whisper windows, oldest first. */
+let recentDoneAt: number[] = [];
 type LoadLevel = 0 | 1 | 2;
 let loadLevel: LoadLevel = 0;
 let slowStreak = 0;
@@ -201,7 +209,29 @@ function noteWindowDuration(durationMs: number): void {
 function noteBacklog(): void {
   if (draining || batchMode || loadLevel !== 1 || activeProvider !== 'local') return;
   if (pendingSegments.length < DEFER_BACKLOG_WINDOWS) return;
-  stepDown(`${pendingSegments.length} windows behind`);
+  const pace = currentPaceMs();
+  if (pace === null || pace <= PARK_PACE_MS) return; // behind, but catching up or close to it
+  stepDown(`${pendingSegments.length} windows behind, ${Math.round(pace)} ms per window`);
+}
+
+/** Record that a live whisper window finished, for currentPaceMs. */
+function noteWindowDone(): void {
+  if (draining || batchMode) return;
+  recentDoneAt.push(Date.now());
+  if (recentDoneAt.length > PACE_SAMPLE) recentDoneAt.shift();
+}
+
+/**
+ * How long live windows take to come out of whisper while it is busy: the mean gap
+ * between recent completions, or the time since the last one when that is longer
+ * (a stalled whisper). Null before any window finished.
+ */
+function currentPaceMs(): number | null {
+  const n = recentDoneAt.length;
+  if (n === 0) return null;
+  const sinceLast = Date.now() - recentDoneAt[n - 1];
+  if (n === 1) return sinceLast;
+  return Math.max((recentDoneAt[n - 1] - recentDoneAt[0]) / (n - 1), sinceLast);
 }
 
 function stepDown(detail: string): void {
@@ -409,6 +439,7 @@ export async function start(meetingId: string, language?: string, opts: StartOpt
   activeTranscriptions = 0;
   loadLevel = 0;
   slowStreak = 0;
+  recentDoneAt = [];
   deferredWindows = [];
   draining = false;
   totalSegmentsQueued = 0;
@@ -911,7 +942,10 @@ async function dispatchToWhisper(
     const result = await trackTiming(`Whisper: segment #${segmentNumber}`, () => promise);
     // Only full windows are comparable to the real-time budget; the short
     // flush window at stop() is not.
-    if (segment.byteLength >= BYTES_PER_SEGMENT) noteWindowDuration(Date.now() - whisperStartedAt);
+    if (segment.byteLength >= BYTES_PER_SEGMENT) {
+      noteWindowDuration(Date.now() - whisperStartedAt);
+      noteWindowDone();
+    }
 
     activeTranscriptions--;
     segmentsCompleted++;
